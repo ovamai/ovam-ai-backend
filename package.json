@@ -1,0 +1,44 @@
+{
+  "name": "ovambackend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "dev": "ts-node server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express-session": "^1.18.1"
+  },
+  "devDependencies": {
+    "@microsoft/microsoft-graph-client": "^3.0.7",
+    "@types/axios": "^0.14.4",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/express-session": "^1.18.2",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/mongoose": "^5.11.97",
+    "@types/node": "^24.0.7",
+    "@types/passport": "^1.0.17",
+    "axios": "^1.10.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.0.0",
+    "express": "^5.1.0",
+    "install": "^0.13.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.16.1",
+    "nodemon": "^3.1.10",
+    "npm": "^11.4.2",
+    "passport": "^0.7.0",
+    "passport-azure-ad-oauth2": "^0.0.4",
+    "passport-bitbucket-oauth2": "^0.1.2",
+    "passport-github2": "^0.1.12",
+    "passport-gitlab2": "^5.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}
