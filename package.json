@@ -1,63 +1,10 @@
 {
-<<<<<<< HEAD
-  "name": "ovam-ai",
-  "version": "1.0.0",
-  "description": "Elevate your team's productivity with Ovam-AI, the intelligent assistant designed to provide real-time, context-aware feedback. Harness the power of AI to streamline collaboration, enhance decision-making, and foster innovation. With Ovam-AI, empower your team to achieve more with less effort, transforming the way you work together.",
-  "main": "index.js",
-  "scripts": {
-    "build": "tsc",
-    "start": "node dist/server.js",
-    "dev": "nodemon",
-    "review:sample": "ts-node src/scripts/reviewSample.ts",
-    "prepare": "husky install"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/ovamai/ovam-ai.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "MIT",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/ovamai/ovam-ai/issues"
-  },
-  "homepage": "https://github.com/ovamai/ovam-ai#readme",
-  "dependencies": {
-    "dd-trace": "^5.56.0",
-    "dotenv": "^16.0.0",
-    "express": "^4.18.2",
-    "jsonwebtoken": "^9.0.2",
-    "morgan": "^1.10.0",
-    "node-fetch": "^2.6.7",
-    "openai": "^4.0.0",
-    "winston": "^3.17.0",
-    "winston-daily-rotate-file": "^5.0.0"
-  },
-  "devDependencies": {
-    "@types/express": "^4.17.17",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/morgan": "^1.9.10",
-    "@types/node": "^18.16.18",
-    "husky": "^9.1.7",
-    "lint-staged": "^16.1.2",
-    "nodemon": "^3.1.10",
-    "prettier": "^3.5.3",
-    "ts-node": "^10.9.1",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^4.9.5"
-  },
-  "lint-staged": {
-    "**/*.{ts,tsx,js,jsx,json}": [
-      "prettier --write"
-    ]
-=======
   "name": "ovambackend",
   "version": "1.0.0",
   "description": "",
   "main": "server.js",
   "scripts": {
-    "dev": "ts-node server.ts",
+    "dev": "ts-node-dev --respawn server.ts",
     "build": "tsc",
     "start": "node dist/server.js"
   },
@@ -92,7 +39,7 @@
     "passport-github2": "^0.1.12",
     "passport-gitlab2": "^5.0.0",
     "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
     "typescript": "^5.8.3"
->>>>>>> ad24051 (backendChange)
   }
 }

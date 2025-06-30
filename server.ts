@@ -1,12 +1,12 @@
 import dotenv from "dotenv";
-import express from "express";
+import express, { Request, Response } from "express";
 import session from "express-session";
 import cors from "cors";
 import mongoose from "mongoose";
 import passport from "passport";
 import jwt from "jsonwebtoken";
 
-// Load environment variables
+// 🔥 Load environment variables
 dotenv.config();
 
 // 🔥 Import authentication strategies
@@ -15,12 +15,13 @@ import "./auth/gitlab";
 import "./auth/azure";
 import "./auth/bitbucket";
 
-// Import User model and type
+// 🔥 Import User model
 import User, { IUser } from "./models/User";
 
+// ✅ Express app initialization
 const app = express();
 
-// ✅ Middleware
+// ✅ Middleware setup
 app.use(
   cors({
     origin: "http://localhost:3000",
@@ -39,13 +40,13 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
-// ✅ MongoDB connection
+// ✅ MongoDB Connection
 mongoose
   .connect("mongodb://localhost:27017/ovamAI")
-  .then(() => console.log("✅ MongoDB connected"))
-  .catch((err) => console.error("❌ MongoDB connection error:", err));
+  .then(() => console.log("✅ MongoDB Connected"))
+  .catch((err) => console.log("❌ MongoDB Error:", err));
 
-// ✅ Session handling
+// ✅ Session handling for Passport
 passport.serializeUser((user: any, done) => {
   done(null, user.id);
 });
@@ -54,21 +55,22 @@ passport.deserializeUser(async (id: string, done) => {
   try {
     const user = await User.findById(id);
     done(null, user);
-  } catch (err) {
-    done(err);
+  } catch (error) {
+    done(error);
   }
 });
 
-// ✅ JWT Token generator
+// ✅ JWT Token Generator
 const generateToken = (user: IUser) => {
+  const jwtSecret = process.env.JWT_SECRET as string;
   return jwt.sign(
     { id: user._id, email: user.email },
-    process.env.JWT_SECRET as string,
+    jwtSecret,
     { expiresIn: "7d" }
   );
 };
 
-// ✅ Scopes for providers
+// ✅ Scopes for each provider
 const providerScopes: { [key: string]: string[] } = {
   github: ["user:email"],
   gitlab: ["read_user"],
@@ -76,7 +78,7 @@ const providerScopes: { [key: string]: string[] } = {
   bitbucket: ["account", "email"],
 };
 
-// ✅ Auth routes
+// ✅ Authentication Routes
 ["github", "gitlab", "azure", "bitbucket"].forEach((provider) => {
   app.get(
     `/auth/${provider}`,
@@ -86,15 +88,15 @@ const providerScopes: { [key: string]: string[] } = {
   app.get(
     `/auth/${provider}/callback`,
     passport.authenticate(provider, { failureRedirect: "/" }),
-    (req, res) => {
+    (req: Request, res: Response) => {
       const token = generateToken(req.user as IUser);
       res.redirect(`http://localhost:3000/?token=${token}`);
     }
   );
 });
 
-// ✅ Server start
+// ✅ Server Listener
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`🚀 Server is running at http://localhost:${PORT}`);
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
