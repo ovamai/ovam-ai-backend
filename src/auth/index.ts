@@ -1,7 +1,8 @@
-require('./github');
-require('./gitlab');
-require('./azure');
-require('./bitbucket');
+import './github';
+import './gitlab';
+import './azure';
+import './bitbucket';
+
 
 {/*
 const passport = require('passport');
