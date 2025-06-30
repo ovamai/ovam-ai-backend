@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+<<<<<<< HEAD
     /* Language and Environment */
     "target": "es2016",
     /* Modules */
@@ -16,3 +17,14 @@
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules"]
 }
+=======
+    "target": "ES6",
+    "module": "commonjs",
+    "outDir": "./dist",
+    "strict": true,
+    "esModuleInterop": true
+  },
+  "include": ["./**/*"],
+  "exclude": ["node_modules"]
+}
+>>>>>>> ad24051 (backendChange)
