@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { reviewPR } from '../services/reviewService';
+import { handlePullRequest, reviewPR } from '../services/reviewService';
 import {
   fetchPRDiff,
   getInstallationTokenHelperFun,
@@ -79,5 +79,40 @@ export async function webhookCall(req: Request, res: Response) {
   } catch (error) {
     console.error('Error processing webhook:', error);
     res.status(500).send('Internal Server Error');
+  }
+}
+
+export async function pullRequestWebhook(req: Request, res: Response) {
+  if (!verifySignature(req)) {
+    return res.status(401).send('Invalid signature');
+  }
+
+  const { action, pull_request: pr, repository: repo, installation } = req.body;
+  if (!['opened', 'synchronize'].includes(action)) {
+    return res.status(200).send('Ignored');
+  }
+
+  try {
+    const token = await getInstallationTokenHelperFun(installation.id);
+    const diff = await fetchPRDiff(
+      repo.owner.login,
+      repo.full_name,
+      pr.number,
+      token,
+    );
+
+    // Kick off your review pipeline
+    await handlePullRequest({
+      owner: repo.owner.login,
+      repo: repo.name,
+      prNumber: pr.number,
+      diff,
+      installationToken: token,
+    });
+
+    res.status(200).send('Review posted');
+  } catch (e) {
+    console.error(e);
+    res.status(500).send('Error processing PR');
   }
 }

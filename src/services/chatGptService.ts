@@ -1,9 +1,9 @@
 import OpenAI from 'openai';
-import { OPENAI_API_KEY } from '../config';
 import { ChatCompletionMessageParam } from 'openai/resources/chat';
 import logger from '../utils/logger';
 import fs from 'fs';
 import path from 'path';
+import { OPENAI_API_KEY, OPENAI_MODEL } from '../config';
 
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
@@ -30,13 +30,13 @@ export async function getCodeReview(diff: string): Promise<string> {
   Please review the following Git diff (_in triple-backticks_) and give me feedback under the prescribed headings:
   
   \`\`\`diff
-  (diff you pasted)
+  ${diff}
   \`\`\`
   `,
     },
   ];
   const resp = await openai.chat.completions.create({
-    model: 'gpt-3.5-turbo', //"gpt-4o-mini",
+    model: OPENAI_MODEL,
     messages: messages,
   });
   logger.info(`resp ${JSON.stringify(resp)}`);
@@ -61,7 +61,7 @@ export async function getCodeSuggestion(diff: string): Promise<string> {
   ];
 
   const resp = await openai.chat.completions.create({
-    model: 'gpt-3.5-turbo', //"gpt-4o-mini",
+    model: OPENAI_MODEL,
     messages: messages,
   });
   logger.info(`resp ${JSON.stringify(resp)}`);
@@ -88,10 +88,10 @@ export async function getCodeReplySuggestion(diff: string): Promise<string> {
 
   // …call your OpenAI chat completion with `messages`…
   const resp = await openai.chat.completions.create({
-    model: 'gpt-3.5-turbo', //"gpt-4o-mini",
+    model: OPENAI_MODEL,
     messages: messages,
   });
-  logger.info(`resp ${JSON.stringify(resp)}`);
+  // logger.info(`resp ${JSON.stringify(resp)}`);
   const choice = resp.choices?.[0];
   const msg = choice?.message;
   if (!msg?.content) {
@@ -101,5 +101,23 @@ export async function getCodeReplySuggestion(diff: string): Promise<string> {
     message: msg,
   });
 
+  return msg.content.trim();
+}
+
+export async function reviewWithAI(prompt: string): Promise<string> {
+  const resp = await openai.chat.completions.create({
+    model: OPENAI_MODEL,
+    messages: [
+      { role: 'system', content: 'You are Ovamai, a code review assistant.' },
+      { role: 'user', content: prompt },
+    ],
+    temperature: 0.7,
+    max_tokens: 1500,
+  });
+  const choice = resp.choices?.[0];
+  const msg = choice?.message;
+  if (!msg?.content) {
+    throw new Error('No reply from ChatGPT');
+  }
   return msg.content.trim();
 }

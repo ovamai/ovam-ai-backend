@@ -15,7 +15,7 @@ app.use(
 );
 
 app.use(express.json());
-app.use('/api', reviewRoutes);
+app.use('/api/v1', reviewRoutes);
 app.use('/api/v1', githubRoutes);
 app.get('/', (req: Request, res: Response) => {
   res.send('Server is running just fine!!');

@@ -2,6 +2,14 @@ import fetch from 'node-fetch';
 import { generateJWT } from '../utils/github_verify_signature';
 import { GITHUB_TOKEN } from '../config';
 
+interface PostReviewOpts {
+  owner: string;
+  repo: string;
+  prNumber: number;
+  body: string;
+  token: string;
+}
+
 export async function getPullRequestDiff(
   owner: string,
   repo: string,
@@ -14,7 +22,6 @@ export async function getPullRequestDiff(
       Accept: 'application/vnd.github.v3.diff',
     },
   });
-  console.log('line 16 res', res);
   if (!res.ok) throw new Error(`GitHub API error: ${res.statusText}`);
   return res.text();
 }
@@ -68,4 +75,20 @@ export async function fetchPRDiff(
   }
 
   return response.text();
+}
+
+export async function postReview(opts: PostReviewOpts) {
+  const url = `https://api.github.com/repos/${opts.owner}/${opts.repo}/pulls/${opts.prNumber}/reviews`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `token ${opts.token}`,
+      Accept: 'application/vnd.github.v3+json',
+    },
+    body: JSON.stringify({ body: opts.body, event: 'COMMENT' }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`GitHub review failed: ${res.status} ${err}`);
+  }
 }

@@ -11,3 +11,4 @@ export const APP_ID = process.env.APP_ID!;
 const PRIVATE_KEY_PATH = process.env.PRIVATE_KEY_PATH!;
 
 export const PRIVATE_KEY = fs.readFileSync(PRIVATE_KEY_PATH, 'utf8');
+export const OPENAI_MODEL = process.env.OPENAI_MODEL || '';
