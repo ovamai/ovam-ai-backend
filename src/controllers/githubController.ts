@@ -46,7 +46,11 @@ export async function webhookCall(req: Request, res: Response) {
 
       console.log(`PR #${pr.number} action: ${action}`);
 
-      if (action === 'opened' || action === 'synchronize') {
+      if (
+        action === 'opened' ||
+        action === 'synchronize' ||
+        action === 'reopened'
+      ) {
         const installationToken = await getInstallationTokenHelperFun(
           installation.id,
         );
@@ -65,8 +69,9 @@ export async function webhookCall(req: Request, res: Response) {
           installationToken,
         );
 
-        console.log(`Fetched diff for PR #${pr.number} (${diff.length} bytes)`);
-
+        console.log(
+          `Fetched diff for PR #${pr?.number} (${diff.length} bytes)`,
+        );
         // TODO: Pass diff to AI processing queue here
 
         // For demo, just respond with success

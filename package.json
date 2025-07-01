@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node src/app.ts",
     "dev": "nodemon",
     "review:sample": "ts-node src/scripts/reviewSample.ts",
     "prepare": "husky install"

@@ -17,7 +17,7 @@ export const generateJWT = (): string => {
   const now = Math.floor(Date.now() / 1000);
   const payload = {
     iat: now - 60, // issued at time, 60 seconds in the past to allow clock drift
-    exp: now + 600, // expires after 10 minutes
+    exp: now + 60, // expires after 10 minutes
     iss: APP_ID, // GitHub App ID
   };
   return jwt.sign(payload, PRIVATE_KEY, { algorithm: 'RS256' });

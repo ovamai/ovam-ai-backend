@@ -14,7 +14,13 @@ app.use(
   }),
 );
 
-app.use(express.json());
+app.use(
+  express.json({
+    verify: (req, res, buf) => {
+      (req as any).rawBody = buf;
+    },
+  }),
+);
 app.use('/api/v1', reviewRoutes);
 app.use('/api/v1', githubRoutes);
 app.get('/', (req: Request, res: Response) => {

@@ -121,3 +121,93 @@ export async function reviewWithAI(prompt: string): Promise<string> {
   }
   return msg.content.trim();
 }
+
+export async function getPrSummary(diff: String) {
+  try {
+    const resp = await openai.chat.completions.create({
+      model: OPENAI_MODEL,
+      messages: [
+        {
+          role: 'system',
+          content: prompts.CR_PRSummaryPrompt,
+        },
+        {
+          role: 'user',
+          content: `Here is the PR diff:\n\n${diff}`, // The actual diff
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 1500,
+    });
+    const choice = resp.choices?.[0];
+    const msg = choice?.message;
+    if (!msg?.content) {
+      throw new Error('No reply from ChatGPT');
+    }
+    // console.log('OpenAI response message', msg);
+    return msg.content.trim();
+  } catch (error) {
+    console.error('Error generating PR summary:', error);
+    throw new Error('Failed to generate PR summary');
+  }
+}
+
+export async function getPrWalkthrough(diff: String) {
+  try {
+    const resp = await openai.chat.completions.create({
+      model: OPENAI_MODEL,
+      messages: [
+        {
+          role: 'system',
+          content: prompts.CR_PRWalkthroughPrompt,
+        },
+        {
+          role: 'user',
+          content: `Here is the PR diff:\n\n${diff}`, // The actual diff
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 1500,
+    });
+    const choice = resp.choices?.[0];
+    const msg = choice?.message;
+    if (!msg?.content) {
+      throw new Error('No reply from ChatGPT');
+    }
+    // console.log('OpenAI response message', msg);
+    return msg.content.trim();
+  } catch (error) {
+    console.error('Error generating PR summary:', error);
+    throw new Error('Failed to generate PR summary');
+  }
+}
+
+export async function getPrCodeReviewComments(diff: String) {
+  try {
+    const resp = await openai.chat.completions.create({
+      model: OPENAI_MODEL,
+      messages: [
+        {
+          role: 'system',
+          content: prompts.CR_CodeReviewCommentsPrompt,
+        },
+        {
+          role: 'user',
+          content: `Here is the PR diff:\n\n${diff}`, // The actual diff
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 1500,
+    });
+    const choice = resp.choices?.[0];
+    const msg = choice?.message;
+    if (!msg?.content) {
+      throw new Error('No reply from ChatGPT');
+    }
+    // console.log('OpenAI response message', msg);
+    return msg.content.trim();
+  } catch (error) {
+    console.error('Error generating PR summary:', error);
+    throw new Error('Failed to generate PR summary');
+  }
+}

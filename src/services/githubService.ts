@@ -1,6 +1,11 @@
 import fetch from 'node-fetch';
 import { generateJWT } from '../utils/github_verify_signature';
 import { GITHUB_TOKEN } from '../config';
+import {
+  getPrCodeReviewComments,
+  getPrSummary,
+  getPrWalkthrough,
+} from './chatGptService';
 
 interface PostReviewOpts {
   owner: string;
@@ -73,8 +78,21 @@ export async function fetchPRDiff(
       `Failed to fetch PR diff: ${response.status} - ${response.statusText}`,
     );
   }
+  const diffText = await response.text();
+  // console.log(`Diff content: ${diff?.diff_url}...`);
+  // console.log(`Diff content: ${diffText}`);
+  console.log(`Diff content: ${diffText}`);
 
-  return response.text();
+  let prSummary = await getPrSummary(diffText);
+  console.log(`PR Summary: ${prSummary}`);
+
+  let prWalkthrough = await getPrWalkthrough(diffText);
+  console.log(`PR Walkthrough: ${prWalkthrough}`);
+
+  let prCodeReviewComments = await getPrCodeReviewComments(diffText);
+  console.log(`PR Code Review Comments: ${prCodeReviewComments}`);
+
+  return diffText;
 }
 
 export async function postReview(opts: PostReviewOpts) {
