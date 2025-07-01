@@ -2,9 +2,12 @@ import express, { Request, Response } from 'express';
 import reviewRoutes from './routes/reviewRoutes';
 import logger from './utils/logger';
 import morgan from 'morgan';
+import connectDB from './config/db';
 import githubRoutes from './routes/githubRoutes';
 
 const app = express();
+
+connectDB();
 
 app.use(
   morgan('combined', {
