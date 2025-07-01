@@ -189,7 +189,7 @@ export async function getPrCodeReviewComments(diff: String) {
       messages: [
         {
           role: 'system',
-          content: prompts.CR_CodeReviewCommentsPrompt,
+          content: prompts.CR_CodeReviewCommentsPrompt_ClaudeAi,
         },
         {
           role: 'user',
