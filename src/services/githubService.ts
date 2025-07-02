@@ -94,6 +94,7 @@ export async function fetchPRDiff(
 
   let prWalkthrough = await getPrWalkthrough(diffText);
   console.log(`PR Walkthrough: ${prWalkthrough}`);
+  await postPRComment(owner, repo, pull_number, JSON.parse(prWalkthrough));
 
   let prCodeReviewComments = await getPrCodeReviewComments(diffText);
   console.log(`PR Code Review Comments: ${prCodeReviewComments}`);
@@ -208,3 +209,47 @@ function generateSummaryFromDynamicJson(
   return summary.trim();
 }
 
+
+export async function postPRComment(
+  owner: string,
+  repo: string,
+  prNumber: number,
+  prWalkthrough: {
+    walkthrough : string,
+    changes : string,
+    sequence_diagrams : string,
+  }
+) {
+  const url = `https://api.github.com/repos/${owner}/${repo}/issues/${prNumber}/comments`;
+  const comment = `
+## 🔍 PR Walkthrough
+${prWalkthrough.walkthrough}
+
+## 📑 Change Summary
+${prWalkthrough.changes}
+
+## 🔗 Sequence Diagram
+${prWalkthrough.sequence_diagrams}
+`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${GITHUB_TOKEN}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ body: comment }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    console.error('❌ Failed to post comment:', error);
+    throw new Error(`GitHub API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  console.log('✅ Comment posted successfully:', data.html_url);
+  return data;
+}
