@@ -80,17 +80,17 @@ export async function webhookCall(req: Request, res: Response) {
           console.log(`PR Summary: ${prSummary}`);
           prSummary = generateSummaryFromDynamicJson(JSON.parse(prSummary));
           console.log(`PR Summary (formatted): ${prSummary}`);
-          await updatePullRequest(owner, repo, pr.number, '', prSummary);
+          await updatePullRequest(owner, repo, pr?.number, pr?.title, prSummary);
         
           let prWalkthrough = await getPrWalkthrough(diff);
           console.log(`PR Walkthrough: ${prWalkthrough}`);
-          await postPRComment(owner, repo, pr.number, JSON.parse(prWalkthrough));
+          await postPRComment(owner, repo, pr?.number, JSON.parse(prWalkthrough));
         
           let prCodeReviewComments = await getPrCodeReviewComments(diff);
           console.log(`PR Code Review Comments: ${prCodeReviewComments}`);
         
           const parsedPrCodeReview: ReviewComment[] = JSON.parse(prCodeReviewComments);
-          await addingComments(owner, repo, pr.number, parsedPrCodeReview);
+          await addingComments(owner, repo, pr?.number, pr?.head?.sha, parsedPrCodeReview);
 
         console.log(
           `Fetched diff for PR #${pr?.number} (${diff.length} bytes)`,

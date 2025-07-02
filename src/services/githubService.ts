@@ -258,9 +258,9 @@ export async function addingComments(
   owner: string,
   repo: string,
   pull_number: number,
+  commitId: string,
   data: ReviewComment[],
 ) {
-  let commitId = '75835f3fa13cd042453eef4b13ebfea8bacc4c86';
   for (const comment of data) {
     const message = `
 ### 🔍 ${comment.title}
