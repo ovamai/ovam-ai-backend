@@ -28,7 +28,6 @@ require('./auth'); // This should import GitHub, GitLab, Azure, Bitbucket strate
 
 // ✅ Middlewares
 app.use(cors({ origin: 'http://localhost:3000', credentials: true }));
-app.use(express.json());
 app.use(passport.initialize());
 
 app.use(

@@ -129,7 +129,7 @@ export async function getPrSummary(diff: String) {
       messages: [
         {
           role: 'system',
-          content: prompts.CR_PRSummaryPrompt,
+          content: prompts.CR_PRSummaryPrompt_chatGPT,
         },
         {
           role: 'user',
@@ -159,7 +159,7 @@ export async function getPrWalkthrough(diff: String) {
       messages: [
         {
           role: 'system',
-          content: prompts.CR_PRWalkthroughPrompt,
+          content: prompts.CR_PRWalkthroughPrompt_Claude,
         },
         {
           role: 'user',
@@ -177,8 +177,8 @@ export async function getPrWalkthrough(diff: String) {
     // console.log('OpenAI response message', msg);
     return msg.content.trim();
   } catch (error) {
-    console.error('Error generating PR summary:', error);
-    throw new Error('Failed to generate PR summary');
+    console.error('Error generating walk through:', error);
+    throw new Error('Failed to generate walk through');
   }
 }
 
@@ -207,7 +207,7 @@ export async function getPrCodeReviewComments(diff: String) {
     // console.log('OpenAI response message', msg);
     return msg.content.trim();
   } catch (error) {
-    console.error('Error generating PR summary:', error);
-    throw new Error('Failed to generate PR summary');
+    console.error('Error generating Review comments:', error);
+    throw new Error('Failed to generate Review comments');
   }
 }
