@@ -1,6 +1,7 @@
 import fetch from 'node-fetch';
 import { generateJWT } from '../utils/github_verify_signature';
 import { GITHUB_TOKEN } from '../config';
+// import { saveCommentToMongoDB } from '../services/reviewCommentService';
 import {
   getPrCodeReviewComments,
   getPrSummary,
@@ -86,11 +87,9 @@ export async function fetchPRDiff(
 
   let prSummary = await getPrSummary(diffText);
   console.log(`PR Summary: ${prSummary}`);
-  prSummary = generateSummaryFromDynamicJson(
-    JSON.parse(prSummary),
-  );
+  prSummary = generateSummaryFromDynamicJson(JSON.parse(prSummary));
   console.log(`PR Summary (formatted): ${prSummary}`);
-  await updatePullRequest(owner, repo, pull_number, "", prSummary);
+  await updatePullRequest(owner, repo, pull_number, '', prSummary);
 
   let prWalkthrough = await getPrWalkthrough(diffText);
   console.log(`PR Walkthrough: ${prWalkthrough}`);
@@ -99,6 +98,8 @@ export async function fetchPRDiff(
   let prCodeReviewComments = await getPrCodeReviewComments(diffText);
   console.log(`PR Code Review Comments: ${prCodeReviewComments}`);
 
+  const parsedPrCodeReview: ReviewComment[] = JSON.parse(prCodeReviewComments);
+  await addingComments(owner, repo, pull_number, parsedPrCodeReview);
   return diffText;
 }
 
@@ -209,16 +210,15 @@ function generateSummaryFromDynamicJson(
   return summary.trim();
 }
 
-
 export async function postPRComment(
   owner: string,
   repo: string,
   prNumber: number,
   prWalkthrough: {
-    walkthrough : string,
-    changes : string,
-    sequence_diagrams : string,
-  }
+    walkthrough: string;
+    changes: string;
+    sequence_diagrams: string;
+  },
 ) {
   const url = `https://api.github.com/repos/${owner}/${repo}/issues/${prNumber}/comments`;
   const comment = `
@@ -251,5 +251,126 @@ ${prWalkthrough.sequence_diagrams}
 
   const data = await response.json();
   console.log('✅ Comment posted successfully:', data.html_url);
+  return data;
+}
+
+interface ReviewComment {
+  file: string;
+  start_line: number;
+  end_line: number;
+  line: number;
+  side: string;
+  start_side: string;
+  severity: string;
+  category: string;
+  title: string;
+  comment: string;
+  suggestion: string;
+  code_diff: string;
+}
+
+async function addingComments(
+  owner: string,
+  repo: string,
+  pull_number: number,
+  data: ReviewComment[],
+) {
+  let commitId = '75835f3fa13cd042453eef4b13ebfea8bacc4c86';
+  for (const comment of data) {
+    const message = `
+### 🔍 ${comment.title}
+🔢 Comment on line: ${comment.start_line} to ${comment.line} 
+⚠️ **Severity**: ${comment.severity}
+🛠️ **Category**: ${comment.category}
+
+💬 ${comment.comment}
+
+💡 **Suggestion**: ${comment.suggestion}
+
+\`\`\`diff
+${comment.code_diff.replace(/^diff\n/, '')}
+\`\`\`
+    `.trim();
+
+    try {
+      const githubResponse = await postPRCommentReview(
+        owner,
+        repo,
+        pull_number,
+        message,
+        commitId,
+        comment.file,
+        comment.start_line,
+        comment.line,
+      );
+
+      // await saveCommentToMongoDB({
+      //   ...comment,
+      //   end_line:comment.line,
+      //   commentId: githubResponse.id,
+      //   githubUrl: githubResponse.html_url,
+      //   prNumber:pull_number,
+      //   createdAt: new Date(),
+      //   updatedAt: new Date()
+      // });
+      console.log('✅ Comment posted');
+    } catch (err) {
+      console.error('❌ Failed to post comment:', err);
+    }
+  }
+}
+
+async function postPRCommentReview(
+  owner: string,
+  repo: string,
+  prNumber: number,
+  message: string,
+  commitId: string,
+  path: string,
+  startLine: number,
+  endLine: number,
+): Promise<any> {
+  const url = `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/comments`;
+  const isMultiLine = startLine !== endLine;
+  // Ensure start_line < end_line for multi-line comments
+  const actualStartLine = Math.min(startLine, endLine);
+  const actualEndLine = Math.max(startLine, endLine);
+
+  const bodyPayload: any = {
+    body: message,
+    commit_id: commitId,
+    path,
+    side: 'RIGHT',
+  };
+
+  if (isMultiLine) {
+    bodyPayload.start_line = actualStartLine;
+    bodyPayload.start_side = 'RIGHT';
+    bodyPayload.line = actualEndLine; // Note: key is 'line' not 'end_line'
+  } else {
+    bodyPayload.line = actualStartLine;
+  }
+  console.log('🚀 Sending comment payload:', bodyPayload); // For debugging
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${GITHUB_TOKEN}`,
+      Accept: 'application/vnd.github+json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(bodyPayload),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    const errorDetails = {
+      status: response.status,
+      message: data.message,
+      errors: data.errors, // GitHub provides specific validation errors
+    };
+    throw new Error(`GitHub API Error: ${JSON.stringify(errorDetails)}`);
+  }
   return data;
 }

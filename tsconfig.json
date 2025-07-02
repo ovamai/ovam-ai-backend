@@ -11,7 +11,7 @@
     "forceConsistentCasingInFileNames": true,
     /* Type Checking */
     "strict": true,
-    "skipLibCheck": true,
+    "skipLibCheck": true
   },
   "include": ["src/**/*.ts", "src/types", "src/types/**/*.d.ts"],
   "exclude": ["node_modules"]

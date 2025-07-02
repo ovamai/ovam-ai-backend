@@ -1,6 +1,6 @@
 declare module 'passport-azure-ad-oauth2';
 declare module 'passport-bitbucket-oauth2';
-declare module 'passport-gitlab2'{
+declare module 'passport-gitlab2' {
   import { Request } from 'express';
   import { Strategy as OAuth2Strategy } from 'passport-oauth2';
 
@@ -10,7 +10,8 @@ declare module 'passport-gitlab2'{
     callbackURL: string;
   }
 
-  export interface GitLabStrategyOptionsWithRequest extends GitLabStrategyOptions {
+  export interface GitLabStrategyOptionsWithRequest
+    extends GitLabStrategyOptions {
     passReqToCallback: true;
   }
 
@@ -21,8 +22,8 @@ declare module 'passport-gitlab2'{
         accessToken: string,
         refreshToken: string,
         profile: any,
-        done: (error: any, user?: any, info?: any) => void
-      ) => void
+        done: (error: any, user?: any, info?: any) => void,
+      ) => void,
     );
     constructor(
       options: GitLabStrategyOptionsWithRequest,
@@ -31,9 +32,8 @@ declare module 'passport-gitlab2'{
         accessToken: string,
         refreshToken: string,
         profile: any,
-        done: (error: any, user?: any, info?: any) => void
-      ) => void
+        done: (error: any, user?: any, info?: any) => void,
+      ) => void,
     );
   }
 }
-
