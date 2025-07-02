@@ -1,8 +1,6 @@
 import fetch from 'node-fetch';
 import * as dotenv from 'dotenv';
 import connectDB from '../config/db';
-
-import { Octokit } from '@octokit/core';
 import { generateJWT } from '../utils/github_verify_signature';
 import { GITHUB_TOKEN } from '../config';
 import {
@@ -120,7 +118,6 @@ export async function postReview(opts: PostReviewOpts) {
 /**
  * Updates the PR body by generating a summary using the diff and OvamAi.
  */
-
 export async function updatePullRequest(
   owner: string,
   repo: string,
@@ -129,31 +126,41 @@ export async function updatePullRequest(
   body: string,
   baseBranch: string = 'main',
 ): Promise<void> {
-  const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN }); // ✅ fixed
+  const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+
+  const url = `https://api.github.com/repos/${owner}/${repo}/pulls/${pull_number}`;
+
+  const payload = {
+    title,
+    body,
+    state: 'open',
+    base: baseBranch,
+  };
 
   try {
-    const response = await octokit.request(
-      'PATCH /repos/{owner}/{repo}/pulls/{pull_number}',
-      {
-        owner,
-        repo,
-        pull_number,
-        title,
-        body,
-        state: 'open',
-        baseBranch,
-        headers: {
-          'X-GitHub-Api-Version': '2022-11-28',
-        },
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `token ${GITHUB_TOKEN}`,
+        'X-GitHub-Api-Version': '2022-11-28',
+        Accept: 'application/vnd.github+json',
       },
-    );
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error(`GitHub API responded with status ${response.status}`);
+    }
+
+    const data = await response.json();
+
     const DateUpdated = new Date().toLocaleString('en-IN', {
       timeZone: 'Asia/Kolkata',
     });
 
-    const currentBranch = response.data.head.ref; // 👈 extract current branch (head)
+    const currentBranch = data.head.ref;
 
-    console.log(DateUpdated);
     const updateFields = {
       title,
       body,
@@ -167,10 +174,11 @@ export async function updatePullRequest(
       { $set: updateFields },
       { upsert: true, new: true },
     );
+
     console.log('updated data');
-    console.log(' PR updated:', response.status);
+    console.log('PR updated:', response.status);
   } catch (error) {
-    console.error(' Failed to update PR:', error);
+    console.error('Failed to update PR:', error);
   }
 }
 
@@ -205,7 +213,7 @@ async function run() {
   const jsonSummary = {
     newFeatures: ['Added .gitignore file.', 'Added photo-4.png to assets.'],
     improvements: [],
-    codeRefactors: ["made good changes"],
+    codeRefactors: ['made good changes'],
     performanceBoosts: ['Reduced image load times by 40%.'],
   };
 
@@ -215,7 +223,7 @@ async function run() {
     'credmarg-simran', // owner
     'app.ovam', // repo name
     2, // PR number
-    'ovam Title', // title
+    'ovam title', // title
     `${body}`, // body
   );
 }
