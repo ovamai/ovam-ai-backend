@@ -85,21 +85,6 @@ export async function fetchPRDiff(
   // console.log(`Diff content: ${diffText}`);
   console.log(`Diff content: ${diffText}`);
 
-  let prSummary = await getPrSummary(diffText);
-  console.log(`PR Summary: ${prSummary}`);
-  prSummary = generateSummaryFromDynamicJson(JSON.parse(prSummary));
-  console.log(`PR Summary (formatted): ${prSummary}`);
-  await updatePullRequest(owner, repo, pull_number, '', prSummary);
-
-  let prWalkthrough = await getPrWalkthrough(diffText);
-  console.log(`PR Walkthrough: ${prWalkthrough}`);
-  await postPRComment(owner, repo, pull_number, JSON.parse(prWalkthrough));
-
-  let prCodeReviewComments = await getPrCodeReviewComments(diffText);
-  console.log(`PR Code Review Comments: ${prCodeReviewComments}`);
-
-  const parsedPrCodeReview: ReviewComment[] = JSON.parse(prCodeReviewComments);
-  await addingComments(owner, repo, pull_number, parsedPrCodeReview);
   return diffText;
 }
 
@@ -183,14 +168,14 @@ export async function updatePullRequest(
   }
 }
 
-function toTitleCase(str: string): string {
+export function toTitleCase(str: string): string {
   return str
     .replace(/([A-Z])/g, ' $1') // Add space before capital letters (e.g., "bugFixes" → "bug Fixes")
     .replace(/^./, s => s.toUpperCase()) // Capitalize first letter
     .replace(/\b\w/g, c => c.toUpperCase()); // Capitalize each word
 }
 
-function generateSummaryFromDynamicJson(
+export function generateSummaryFromDynamicJson(
   data: Record<string, string[]>,
 ): string {
   let summary = `## Summary by OvamAI\n\n`;
@@ -254,7 +239,7 @@ ${prWalkthrough.sequence_diagrams}
   return data;
 }
 
-interface ReviewComment {
+export interface ReviewComment {
   file: string;
   start_line: number;
   end_line: number;
@@ -269,7 +254,7 @@ interface ReviewComment {
   code_diff: string;
 }
 
-async function addingComments(
+export async function addingComments(
   owner: string,
   repo: string,
   pull_number: number,
@@ -320,7 +305,7 @@ ${comment.code_diff.replace(/^diff\n/, '')}
   }
 }
 
-async function postPRCommentReview(
+export async function postPRCommentReview(
   owner: string,
   repo: string,
   prNumber: number,

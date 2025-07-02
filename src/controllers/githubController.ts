@@ -1,10 +1,16 @@
 import { Request, Response } from 'express';
 import { handlePullRequest, reviewPR } from '../services/reviewService';
 import {
+  addingComments,
   fetchPRDiff,
+  generateSummaryFromDynamicJson,
   getInstallationTokenHelperFun,
+  postPRComment,
+  ReviewComment,
+  updatePullRequest,
 } from '../services/githubService';
 import { verifySignature } from '../utils/github_verify_signature';
+import { getPrCodeReviewComments, getPrSummary, getPrWalkthrough } from '../services/chatGptService';
 
 export async function getInstallationToken(req: Request, res: Response) {
   const { installationId } = req.body;
@@ -68,6 +74,23 @@ export async function webhookCall(req: Request, res: Response) {
           pr.number,
           installationToken,
         );
+
+
+          let prSummary = await getPrSummary(diff);
+          console.log(`PR Summary: ${prSummary}`);
+          prSummary = generateSummaryFromDynamicJson(JSON.parse(prSummary));
+          console.log(`PR Summary (formatted): ${prSummary}`);
+          await updatePullRequest(owner, repo, pr.number, '', prSummary);
+        
+          let prWalkthrough = await getPrWalkthrough(diff);
+          console.log(`PR Walkthrough: ${prWalkthrough}`);
+          await postPRComment(owner, repo, pr.number, JSON.parse(prWalkthrough));
+        
+          let prCodeReviewComments = await getPrCodeReviewComments(diff);
+          console.log(`PR Code Review Comments: ${prCodeReviewComments}`);
+        
+          const parsedPrCodeReview: ReviewComment[] = JSON.parse(prCodeReviewComments);
+          await addingComments(owner, repo, pr.number, parsedPrCodeReview);
 
         console.log(
           `Fetched diff for PR #${pr?.number} (${diff.length} bytes)`,
