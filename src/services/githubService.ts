@@ -7,6 +7,7 @@ import {
   getPrSummary,
   getPrWalkthrough,
 } from './chatGptService';
+import PullRequestUpdate from '../models/PullRequestUpdate';
 
 interface PostReviewOpts {
   owner: string;
@@ -112,8 +113,6 @@ export async function postReview(opts: PostReviewOpts) {
   }
 }
 
-
- */
 export async function updatePullRequest(
   owner: string,
   repo: string,
