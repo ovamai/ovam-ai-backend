@@ -121,7 +121,7 @@ export async function postReview(opts: PostReviewOpts) {
 /**
  * Updates the PR body by generating a summary using the diff and OvamAi.
  */
-export async function updatePullRequest(
+export async function updatePullRequestSummary(
   owner: string,
   repo: string,
   pull_number: number,
