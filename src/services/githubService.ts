@@ -7,6 +7,7 @@ import {
   getPrSummary,
   getPrWalkthrough,
 } from './chatGptService';
+import PullRequestUpdate from '../models/PullRequestUpdate';
 
 interface PostReviewOpts {
   owner: string;
@@ -86,9 +87,13 @@ export async function fetchPRDiff(
 
   let prSummary = await getPrSummary(diffText);
   console.log(`PR Summary: ${prSummary}`);
+  prSummary = generateSummaryFromDynamicJson(JSON.parse(prSummary));
+  console.log(`PR Summary (formatted): ${prSummary}`);
+  await updatePullRequest(owner, repo, pull_number, '', prSummary);
 
   let prWalkthrough = await getPrWalkthrough(diffText);
   console.log(`PR Walkthrough: ${prWalkthrough}`);
+  await postPRComment(owner, repo, pull_number, JSON.parse(prWalkthrough));
 
   let prCodeReviewComments = await getPrCodeReviewComments(diffText);
   console.log(`PR Code Review Comments: ${prCodeReviewComments}`);
@@ -112,6 +117,141 @@ export async function postReview(opts: PostReviewOpts) {
     const err = await res.text();
     throw new Error(`GitHub review failed: ${res.status} ${err}`);
   }
+}
+
+export async function updatePullRequest(
+  owner: string,
+  repo: string,
+  pull_number: number,
+  title: string,
+  body: string,
+  baseBranch: string = 'main',
+): Promise<void> {
+  const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+
+  const url = `https://api.github.com/repos/${owner}/${repo}/pulls/${pull_number}`;
+
+  const payload = {
+    title,
+    body,
+    state: 'open',
+    base: baseBranch,
+  };
+
+  try {
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `token ${GITHUB_TOKEN}`,
+        'X-GitHub-Api-Version': '2022-11-28',
+        Accept: 'application/vnd.github+json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error(`GitHub API responded with status ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    const DateUpdated = new Date().toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+    });
+
+    const currentBranch = data.head.ref;
+
+    const updateFields = {
+      title,
+      body,
+      baseBranch,
+      currentBranch,
+      updatedAt: DateUpdated,
+    };
+
+    await PullRequestUpdate.findOneAndUpdate(
+      { owner, repo, pull_number },
+      { $set: updateFields },
+      { upsert: true, new: true },
+    );
+
+    console.log('updated data');
+    console.log('PR updated:', response.status);
+  } catch (error) {
+    console.error('Failed to update PR:', error);
+  }
+}
+
+function toTitleCase(str: string): string {
+  return str
+    .replace(/([A-Z])/g, ' $1') // Add space before capital letters (e.g., "bugFixes" → "bug Fixes")
+    .replace(/^./, s => s.toUpperCase()) // Capitalize first letter
+    .replace(/\b\w/g, c => c.toUpperCase()); // Capitalize each word
+}
+
+function generateSummaryFromDynamicJson(
+  data: Record<string, string[]>,
+): string {
+  let summary = `## Summary by OvamAI\n\n`;
+
+  for (const key in data) {
+    const items = data[key];
+    if (Array.isArray(items) && items.length > 0) {
+      const sectionTitle = toTitleCase(key);
+      summary += `#### ${sectionTitle}\n`;
+      for (const item of items) {
+        summary += `- ${item}\n`;
+      }
+      summary += `\n`;
+    }
+  }
+
+  return summary.trim();
+}
+
+export async function postPRComment(
+  owner: string,
+  repo: string,
+  prNumber: number,
+  prWalkthrough: {
+    walkthrough: string;
+    changes: string;
+    sequence_diagrams: string;
+  },
+) {
+  const url = `https://api.github.com/repos/${owner}/${repo}/issues/${prNumber}/comments`;
+  const comment = `
+## 🔍 PR Walkthrough
+${prWalkthrough.walkthrough}
+
+## 📑 Change Summary
+${prWalkthrough.changes}
+
+## 🔗 Sequence Diagram
+${prWalkthrough.sequence_diagrams}
+`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${GITHUB_TOKEN}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ body: comment }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    console.error('❌ Failed to post comment:', error);
+    throw new Error(`GitHub API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  console.log('✅ Comment posted successfully:', data.html_url);
+  return data;
 }
 
 interface ReviewComment {
@@ -153,7 +293,7 @@ ${comment.code_diff.replace(/^diff\n/, '')}
     `.trim();
 
     try {
-      const githubResponse = await postPRComment(
+      const githubResponse = await postPRCommentReview(
         owner,
         repo,
         pull_number,
@@ -180,7 +320,7 @@ ${comment.code_diff.replace(/^diff\n/, '')}
   }
 }
 
-async function postPRComment(
+async function postPRCommentReview(
   owner: string,
   repo: string,
   prNumber: number,
