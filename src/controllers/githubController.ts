@@ -66,6 +66,8 @@ export async function webhookCall(req: Request, res: Response) {
 
         // Extract repo info
         const [owner, repoName] = repo.full_name.split('/');
+        const commit_id = pr?.head?.sha;
+        const pull_number = pr?.number;
 
         // Fetch PR diff
         const diff = await fetchPRDiff(
@@ -80,20 +82,20 @@ export async function webhookCall(req: Request, res: Response) {
           console.log(`PR Summary: ${prSummary}`);
           prSummary = generateSummaryFromDynamicJson(JSON.parse(prSummary));
           console.log(`PR Summary (formatted): ${prSummary}`);
-          await updatePullRequest(owner, repo, pr?.number, pr?.title, prSummary);
+          await updatePullRequest(owner, repoName, pull_number, pr?.title, prSummary);
         
           let prWalkthrough = await getPrWalkthrough(diff);
           console.log(`PR Walkthrough: ${prWalkthrough}`);
-          await postPRComment(owner, repo, pr?.number, JSON.parse(prWalkthrough));
+          await postPRComment(owner, repoName, pull_number, JSON.parse(prWalkthrough));
         
           let prCodeReviewComments = await getPrCodeReviewComments(diff);
           console.log(`PR Code Review Comments: ${prCodeReviewComments}`);
         
           const parsedPrCodeReview: ReviewComment[] = JSON.parse(prCodeReviewComments);
-          await addingComments(owner, repo, pr?.number, pr?.head?.sha, parsedPrCodeReview);
+          await addingComments(owner, repoName, pull_number, commit_id, parsedPrCodeReview);
 
         console.log(
-          `Fetched diff for PR #${pr?.number} (${diff.length} bytes)`,
+          `Fetched diff for PR #${pull_number} (${diff.length} bytes)`,
         );
         // TODO: Pass diff to AI processing queue here
 
