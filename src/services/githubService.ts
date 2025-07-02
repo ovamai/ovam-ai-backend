@@ -86,6 +86,11 @@ export async function fetchPRDiff(
 
   let prSummary = await getPrSummary(diffText);
   console.log(`PR Summary: ${prSummary}`);
+  prSummary = generateSummaryFromDynamicJson(
+    JSON.parse(prSummary),
+  );
+  console.log(`PR Summary (formatted): ${prSummary}`);
+  await updatePullRequest(owner, repo, pull_number, "", prSummary);
 
   let prWalkthrough = await getPrWalkthrough(diffText);
   console.log(`PR Walkthrough: ${prWalkthrough}`);
