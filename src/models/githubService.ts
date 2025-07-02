@@ -1,13 +1,16 @@
 import fetch from 'node-fetch';
+import * as dotenv from 'dotenv';
+import connectDB from '../config/db';
 import { generateJWT } from '../utils/github_verify_signature';
 import { GITHUB_TOKEN } from '../config';
-import connectDB from '../config/db';
 import {
   getPrCodeReviewComments,
   getPrSummary,
   getPrWalkthrough,
 } from './chatGptService';
+import PullRequestUpdate from '../models/PullRequestUpdate';
 
+dotenv.config();
 interface PostReviewOpts {
   owner: string;
   repo: string;
@@ -112,7 +115,8 @@ export async function postReview(opts: PostReviewOpts) {
   }
 }
 
-
+/**
+ * Updates the PR body by generating a summary using the diff and OvamAi.
  */
 export async function updatePullRequest(
   owner: string,
