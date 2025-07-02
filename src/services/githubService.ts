@@ -203,22 +203,3 @@ function generateSummaryFromDynamicJson(
   return summary.trim();
 }
 
-async function run() {
-  const jsonSummary = {
-    newFeatures: ['Added .gitignore file.', 'Added photo-4.png to assets.'],
-    improvements: [],
-    codeRefactors: ['made good changes'],
-    performanceBoosts: ['Reduced image load times by 40%.'],
-  };
-
-  const body = generateSummaryFromDynamicJson(jsonSummary);
-  await updatePullRequest(
-    'credmarg-simran', // owner
-    'app.ovam', // repo name
-    2, // PR number
-    'ovam title', // title
-    `${body}`, // body
-  );
-}
-
-run().catch(console.error);
