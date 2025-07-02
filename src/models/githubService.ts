@@ -1,6 +1,5 @@
 import fetch from 'node-fetch';
 import * as dotenv from 'dotenv';
-import connectDB from '../config/db';
 import { generateJWT } from '../utils/github_verify_signature';
 import { GITHUB_TOKEN } from '../config';
 import {
@@ -218,7 +217,6 @@ async function run() {
   };
 
   const body = generateSummaryFromDynamicJson(jsonSummary);
-  await connectDB();
   await updatePullRequest(
     'credmarg-simran', // owner
     'app.ovam', // repo name
