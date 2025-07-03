@@ -9,7 +9,7 @@ const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 const prompts = JSON.parse(
   fs.readFileSync(
-    path.resolve(__dirname, '../src/config/prompts.private.json'),
+    path.resolve(__dirname, '../config/prompts.private.json'),
     'utf-8',
   ),
 );
