@@ -76,7 +76,6 @@ src/config/prompts.private.json
 /dist/
 /lib/
 /node_modules/
-/backendByUsingJavascript/
 
 *.private-key.pem
 
