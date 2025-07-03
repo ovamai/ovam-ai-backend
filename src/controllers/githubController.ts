@@ -5,6 +5,7 @@ import {
   fetchPRDiff,
   generateSummaryFromDynamicJson,
   getInstallationTokenHelperFun,
+  parseUnifiedDiff,
   postPRComment,
   ReviewComment,
   updatePullRequest,
@@ -77,12 +78,24 @@ export async function webhookCall(req: Request, res: Response) {
           installationToken,
         );
 
+        let chunkedData = parseUnifiedDiff(diff);
+        console.log(`Parsed diff into ${chunkedData.length} chunks`);
+        console.log(`First chunk: ${JSON.stringify(chunkedData)}`);
+
+        for (const chunk of chunkedData) {
+          console.log(`Processing chunk: ${JSON.stringify(chunk)}`);
+          let prCodeReviewComments = await getPrCodeReviewComments(JSON.stringify(chunk));
+          console.log(`PR Code Review Comments: ${prCodeReviewComments}`);
+        
+          const parsedPrCodeReview: ReviewComment[] = JSON.parse(prCodeReviewComments);
+          await addingComments(owner, repoName, pull_number, commit_id, parsedPrCodeReview);
+        }
 
           let prSummary = await getPrSummary(diff);
           console.log(`PR Summary: ${prSummary}`);
           prSummary = generateSummaryFromDynamicJson(JSON.parse(prSummary));
           console.log(`PR Summary (formatted): ${prSummary}`);
-          await updatePullRequest(owner, repoName, pull_number, pr?.title, prSummary);
+          await updatePullRequest(owner, repoName, pull_number, pr?.title, prSummary, pr?.base?.ref, installationToken);
         
           let prWalkthrough = await getPrWalkthrough(diff);
           console.log(`PR Walkthrough: ${prWalkthrough}`);
