@@ -368,62 +368,126 @@ interface DiffChunk {
   chunkContent: string;
 }
 
-export function parseUnifiedDiff(diffText: string): DiffChunk[] {
+interface FunctionHunk {
+  file: string;
+  functionName: string;
+  hunks: string[];
+  startLine: number;
+  endLine: number;
+}
+
+export function parseAndSplitDiff(diffText: string, maxBytes: number): DiffChunk[] {
   const lines = diffText.split('\n');
-  const chunks: DiffChunk[] = [];
+
+  const functionHunks: FunctionHunk[] = [];
 
   let currentFile = '';
-  let currentChunk: string[] = [];
-  let startLine = 0;
-  let endLine = 0;
+  let currentFunction = '';
+  let currentHunkLines: string[] = [];
+  let hunkStartLine = 0;
+  let hunkEndLine = 0;
+
+  const flushHunk = () => {
+    if (currentFile && currentHunkLines.length > 0) {
+      functionHunks.push({
+        file: currentFile,
+        functionName: currentFunction || 'UNKNOWN_FUNCTION',
+        hunks: [...currentHunkLines],
+        startLine: hunkStartLine,
+        endLine: hunkEndLine,
+      });
+    }
+    currentHunkLines = [];
+  };
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    if (line.includes('Binary files')) continue;
-    if (line.endsWith('.png') || line.endsWith('.webp')) continue;
-
     if (line.startsWith('diff --git')) {
-      // flush previous
-      if (currentChunk.length > 0 && currentFile) {
-        chunks.push({
-          file: currentFile,
-          startLine,
-          endLine,
-          chunkContent: currentChunk.join('\n'),
-        });
-        currentChunk = [];
-      }
-      const filePathMatch = line.match(/b\/(.+)$/);
-      currentFile = filePathMatch ? filePathMatch[1] : '';
+      flushHunk();
+      const match = line.match(/b\/(.+)$/);
+      currentFile = match ? match[1] : '';
+      currentFunction = '';
     }
 
     if (line.startsWith('@@')) {
-      const hunkMatch = line.match(/@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/);
-      if (hunkMatch) {
-        startLine = parseInt(hunkMatch[1], 10);
-        const lineCount = hunkMatch[2] ? parseInt(hunkMatch[2], 10) : 1;
-        endLine = startLine + lineCount - 1;
+      flushHunk();
+      const match = line.match(/@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@(.*)/);
+      if (match) {
+        hunkStartLine = parseInt(match[1], 10);
+        const lineCount = match[2] ? parseInt(match[2], 10) : 1;
+        hunkEndLine = hunkStartLine + lineCount - 1;
+        currentFunction = match[3].trim() || 'UNKNOWN_FUNCTION';
       }
     }
 
     if (
       currentFile &&
-      (line.startsWith('+') || line.startsWith('-') || line.startsWith(' '))
+      (line.startsWith('+') || line.startsWith('-') || line.startsWith(' ') || line.startsWith('@@'))
     ) {
-      currentChunk.push(line);
+      currentHunkLines.push(line);
     }
   }
 
-  // final flush
-  if (currentChunk.length > 0 && currentFile) {
-    chunks.push({
-      file: currentFile,
-      startLine,
-      endLine,
+  flushHunk();
+
+  // Group hunks by (file + function)
+  const grouped: Record<string, FunctionHunk[]> = {};
+
+  for (const fh of functionHunks) {
+    const key = `${fh.file}::${fh.functionName}`;
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(fh);
+  }
+
+  // Now pack into chunks, maxBytes each
+  const result: DiffChunk[] = [];
+  let currentChunk: string[] = [];
+  let currentBytes = 0;
+  let chunkFile = '';
+  let chunkStart = 0;
+  let chunkEnd = 0;
+
+  for (const [key, hunks] of Object.entries(grouped)) {
+    const file = hunks[0].file;
+    const startLine = hunks[0].startLine;
+    const endLine = hunks[hunks.length - 1].endLine;
+    const content = hunks.flatMap(h => h.hunks).join('\n');
+    const contentBytes = Buffer.byteLength(content, 'utf-8');
+
+    if (
+      currentBytes + contentBytes > maxBytes &&
+      currentChunk.length > 0
+    ) {
+      // flush
+      result.push({
+        file: chunkFile,
+        startLine: chunkStart,
+        endLine: chunkEnd,
+        chunkContent: currentChunk.join('\n'),
+      });
+      currentChunk = [];
+      currentBytes = 0;
+    }
+
+    if (currentChunk.length === 0) {
+      chunkFile = file;
+      chunkStart = startLine;
+    }
+
+    currentChunk.push(content);
+    currentBytes += contentBytes;
+    chunkEnd = endLine;
+  }
+
+  if (currentChunk.length > 0) {
+    result.push({
+      file: chunkFile,
+      startLine: chunkStart,
+      endLine: chunkEnd,
       chunkContent: currentChunk.join('\n'),
     });
   }
 
-  return chunks;
+  return result;
 }

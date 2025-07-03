@@ -5,7 +5,7 @@ import {
   fetchPRDiff,
   generateSummaryFromDynamicJson,
   getInstallationTokenHelperFun,
-  parseUnifiedDiff,
+  parseAndSplitDiff,
   postPRComment,
   ReviewComment,
   updatePullRequest,
@@ -78,7 +78,7 @@ export async function webhookCall(req: Request, res: Response) {
           installationToken,
         );
 
-        let chunkedData = parseUnifiedDiff(diff);
+        let chunkedData = parseAndSplitDiff(diff, 2500);
         console.log(`Parsed diff into ${chunkedData.length} chunks`);
         console.log(`First chunk: ${JSON.stringify(chunkedData)}`);
 
