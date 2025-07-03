@@ -112,7 +112,7 @@ export async function reviewWithAI(prompt: string): Promise<string> {
       { role: 'user', content: prompt },
     ],
     temperature: 0.7,
-    max_tokens: 1500,
+    max_tokens: 2000,
   });
   const choice = resp.choices?.[0];
   const msg = choice?.message;
@@ -137,14 +137,13 @@ export async function getPrSummary(diff: String) {
         },
       ],
       temperature: 0.7,
-      max_tokens: 1500,
+      max_tokens: 2000,
     });
     const choice = resp.choices?.[0];
     const msg = choice?.message;
     if (!msg?.content) {
       throw new Error('No reply from ChatGPT');
     }
-    // console.log('OpenAI response message', msg);
     return msg.content.trim();
   } catch (error) {
     console.error('Error generating PR summary:', error);
@@ -167,14 +166,13 @@ export async function getPrWalkthrough(diff: String) {
         },
       ],
       temperature: 0.7,
-      max_tokens: 1500,
+      max_tokens: 2000,
     });
     const choice = resp.choices?.[0];
     const msg = choice?.message;
     if (!msg?.content) {
       throw new Error('No reply from ChatGPT');
     }
-    // console.log('OpenAI response message', msg);
     return msg.content.trim();
   } catch (error) {
     console.error('Error generating walk through:', error);
@@ -197,14 +195,100 @@ export async function getPrCodeReviewComments(diff: String) {
         },
       ],
       temperature: 0.7,
-      max_tokens: 1500,
+      max_tokens: 2000,
     });
     const choice = resp.choices?.[0];
     const msg = choice?.message;
     if (!msg?.content) {
       throw new Error('No reply from ChatGPT');
     }
-    // console.log('OpenAI response message', msg);
+    return msg.content.trim();
+  } catch (error) {
+    console.error('Error generating Review comments:', error);
+    throw new Error('Failed to generate Review comments');
+  }
+}
+
+export async function getOverAllPrReviewComments(comments: any) {
+  try {
+    const resp = await openai.chat.completions.create({
+      model: OPENAI_MODEL,
+      messages: [
+        {
+          role: 'system',
+          content: prompts.CR_ConsolidationPrompt_ClaudeAi,
+        },
+        {
+          role: 'user',
+          content: `Here is the PR diff:\n\n${comments}`, // The actual diff
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 2000,
+    });
+    const choice = resp.choices?.[0];
+    const msg = choice?.message;
+    if (!msg?.content) {
+      throw new Error('No reply from ChatGPT');
+    }
+    return msg.content.trim();
+  } catch (error) {
+    console.error('Error generating Review comments:', error);
+    throw new Error('Failed to generate Review comments');
+  }
+}
+
+export async function getOverAllPrSummary(comments: any) {
+  try {
+    const resp = await openai.chat.completions.create({
+      model: OPENAI_MODEL,
+      messages: [
+        {
+          role: 'system',
+          content: prompts.CR_PRSummaryConsolidationPrompt_chatGPT,
+        },
+        {
+          role: 'user',
+          content: `Here is the PR diff:\n\n${comments}`, // The actual diff
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 2000,
+    });
+    const choice = resp.choices?.[0];
+    const msg = choice?.message;
+    if (!msg?.content) {
+      throw new Error('No reply from ChatGPT');
+    }
+    return msg.content.trim();
+  } catch (error) {
+    console.error('Error generating Review comments:', error);
+    throw new Error('Failed to generate Review comments');
+  }
+}
+
+export async function getOverAllPrWalkthrough(comments: any) {
+  try {
+    const resp = await openai.chat.completions.create({
+      model: OPENAI_MODEL,
+      messages: [
+        {
+          role: 'system',
+          content: prompts.CR_PRWalkthroughConsolidationPrompt_Claude,
+        },
+        {
+          role: 'user',
+          content: `Here is the PR diff:\n\n${comments}`, // The actual diff
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 2000,
+    });
+    const choice = resp.choices?.[0];
+    const msg = choice?.message;
+    if (!msg?.content) {
+      throw new Error('No reply from ChatGPT');
+    }
     return msg.content.trim();
   } catch (error) {
     console.error('Error generating Review comments:', error);

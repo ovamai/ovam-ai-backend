@@ -81,9 +81,6 @@ export async function fetchPRDiff(
     );
   }
   const diffText = await response.text();
-  // console.log(`Diff content: ${diff?.diff_url}...`);
-  // console.log(`Diff content: ${diffText}`);
-  console.log(`Diff content: ${diffText}`);
 
   return diffText;
 }
@@ -113,7 +110,6 @@ export async function updatePullRequest(
   baseBranch: string = 'main',
   installationToken: string,
 ): Promise<void> {
-  console.log('owner:', owner, 'repo:', repo, 'pull_number:', pull_number, title, body, baseBranch);
 
   const url = `https://api.github.com/repos/${owner}/${repo}/pulls/${pull_number}`;
 
@@ -162,8 +158,6 @@ export async function updatePullRequest(
       { upsert: true, new: true },
     );
 
-    console.log('updated data');
-    console.log('PR updated:', response.status);
   } catch (error) {
     console.error('Failed to update PR:', error);
   }
@@ -171,9 +165,9 @@ export async function updatePullRequest(
 
 export function toTitleCase(str: string): string {
   return str
-    .replace(/([A-Z])/g, ' $1') // Add space before capital letters (e.g., "bugFixes" → "bug Fixes")
-    .replace(/^./, s => s.toUpperCase()) // Capitalize first letter
-    .replace(/\b\w/g, c => c.toUpperCase()); // Capitalize each word
+    ?.replace(/([A-Z])/g, ' $1') // Add space before capital letters (e.g., "bugFixes" → "bug Fixes")
+    ?.replace(/^./, s => s.toUpperCase()) // Capitalize first letter
+    ?.replace(/\b\w/g, c => c.toUpperCase()); // Capitalize each word
 }
 
 export function generateSummaryFromDynamicJson(
@@ -231,7 +225,7 @@ ${prWalkthrough.sequence_diagrams}
 
   if (!response.ok) {
     const error = await response.json();
-    console.error('❌ Failed to post comment:', error);
+    console.error('❌ Failed to post walkthrough comment:', error);
     throw new Error(`GitHub API error: ${response.status}`);
   }
 
@@ -274,7 +268,7 @@ export async function addingComments(
 💡 **Suggestion**: ${comment.suggestion}
 
 \`\`\`diff
-${comment.code_diff.replace(/^diff\n/, '')}
+${comment?.code_diff?.replace(/^diff\n/, '')}
 \`\`\`
     `.trim();
 
@@ -301,7 +295,7 @@ ${comment.code_diff.replace(/^diff\n/, '')}
       // });
       console.log('✅ Comment posted');
     } catch (err) {
-      console.error('❌ Failed to post comment:', err);
+      console.error('❌ Failed to post review comment:', err);
     }
   }
 }
@@ -336,7 +330,6 @@ export async function postPRCommentReview(
   } else {
     bodyPayload.line = actualStartLine;
   }
-  console.log('🚀 Sending comment payload:', bodyPayload); // For debugging
 
   const response = await fetch(url, {
     method: 'POST',

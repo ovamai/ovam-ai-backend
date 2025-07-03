@@ -11,7 +11,7 @@ import {
   updatePullRequest,
 } from '../services/githubService';
 import { verifySignature } from '../utils/github_verify_signature';
-import { getPrCodeReviewComments, getPrSummary, getPrWalkthrough } from '../services/chatGptService';
+import { getOverAllPrReviewComments, getOverAllPrSummary, getOverAllPrWalkthrough, getPrCodeReviewComments, getPrSummary, getPrWalkthrough } from '../services/chatGptService';
 
 export async function getInstallationToken(req: Request, res: Response) {
   const { installationId } = req.body;
@@ -39,8 +39,6 @@ export async function webhookCall(req: Request, res: Response) {
     }
 
     const payload = req.body;
-    console.log('line 94 event ', event);
-    console.log('line 94 payload ', payload);
     if (event === 'pull_request') {
       const action = payload.action;
       const pr = payload.pull_request;
@@ -51,8 +49,6 @@ export async function webhookCall(req: Request, res: Response) {
         return res.status(400).send('Invalid payload structure');
       }
 
-      console.log(`PR #${pr.number} action: ${action}`);
-
       if (
         action === 'opened' ||
         action === 'synchronize' ||
@@ -60,9 +56,6 @@ export async function webhookCall(req: Request, res: Response) {
       ) {
         const installationToken = await getInstallationTokenHelperFun(
           installation.id,
-        );
-        console.log(
-          `Obtained installation token for installation ID: ${installation.id}`,
         );
 
         // Extract repo info
@@ -77,40 +70,56 @@ export async function webhookCall(req: Request, res: Response) {
           pr.number,
           installationToken,
         );
-
-        let chunkedData = parseAndSplitDiff(diff, 2500);
-        console.log(`Parsed diff into ${chunkedData.length} chunks`);
-        console.log(`First chunk: ${JSON.stringify(chunkedData)}`);
-
-        for (const chunk of chunkedData) {
-          console.log(`Processing chunk: ${JSON.stringify(chunk)}`);
-          let prCodeReviewComments = await getPrCodeReviewComments(JSON.stringify(chunk));
-          console.log(`PR Code Review Comments: ${prCodeReviewComments}`);
         
-          const parsedPrCodeReview: ReviewComment[] = JSON.parse(prCodeReviewComments);
-          await addingComments(owner, repoName, pull_number, commit_id, parsedPrCodeReview);
-        }
-
-          let prSummary = await getPrSummary(diff);
-          console.log(`PR Summary: ${prSummary}`);
-          prSummary = generateSummaryFromDynamicJson(JSON.parse(prSummary));
-          console.log(`PR Summary (formatted): ${prSummary}`);
-          await updatePullRequest(owner, repoName, pull_number, pr?.title, prSummary, pr?.base?.ref, installationToken);
-        
-          let prWalkthrough = await getPrWalkthrough(diff);
-          console.log(`PR Walkthrough: ${prWalkthrough}`);
-          await postPRComment(owner, repoName, pull_number, JSON.parse(prWalkthrough));
-        
-          let prCodeReviewComments = await getPrCodeReviewComments(diff);
-          console.log(`PR Code Review Comments: ${prCodeReviewComments}`);
-        
-          const parsedPrCodeReview: ReviewComment[] = JSON.parse(prCodeReviewComments);
-          await addingComments(owner, repoName, pull_number, commit_id, parsedPrCodeReview);
-
-        console.log(
-          `Fetched diff for PR #${pull_number} (${diff.length} bytes)`,
-        );
         // TODO: Pass diff to AI processing queue here
+        if(diff?.length > 62000) { // bytes
+          let chunkedData = parseAndSplitDiff(diff, 40000);
+          console.log(`Parsed diff into ${chunkedData.length} chunks`);
+          console.log(`First chunk: ${JSON.stringify(chunkedData)}`);
+          let pRSummary = [];
+          let prWalkThrough = [];
+          let prCodeReviews = [];
+          for (const chunk of chunkedData) {
+            let prChunkSummary = await getPrSummary(JSON.stringify(chunk));
+            pRSummary.push(prChunkSummary);
+
+            let chunkedWalkthrough = await getPrWalkthrough(JSON.stringify(chunk));
+            prWalkThrough.push(chunkedWalkthrough);
+
+            let prCodeReviewComments = await getPrCodeReviewComments(JSON.stringify(chunk));
+            prCodeReviews.push(prCodeReviewComments);
+          }
+          
+          // chunked PR summary
+          let resultSummary = await getOverAllPrSummary(pRSummary);
+          resultSummary = generateSummaryFromDynamicJson(JSON.parse(resultSummary));
+          await updatePullRequest(owner, repoName, pull_number, pr?.title, resultSummary, pr?.base?.ref, installationToken);
+          
+          let resultWalkthrough = await getOverAllPrWalkthrough(prWalkThrough);
+          await postPRComment(owner, repoName, pull_number, JSON.parse(resultWalkthrough));
+          
+          // chunked PR Code Review Comments
+          let resultComments = await getOverAllPrReviewComments(prCodeReviews);
+          const parsedPrCodeReview: ReviewComment[] = JSON.parse(resultComments);
+          await addingComments(owner, repoName, pull_number, commit_id, parsedPrCodeReview);
+
+          return res.status(200).send('PR processed successfully');
+        }
+        
+        // Get PR summary
+        let prSummary = await getPrSummary(diff);
+        prSummary = generateSummaryFromDynamicJson(JSON.parse(prSummary));
+        await updatePullRequest(owner, repoName, pull_number, pr?.title, prSummary, pr?.base?.ref, installationToken);
+
+        // get PR walkthrough
+        let prWalkthrough = await getPrWalkthrough(diff);
+        await postPRComment(owner, repoName, pull_number, JSON.parse(prWalkthrough));
+
+        // Get code review comments
+        let prCodeReviewComments = await getPrCodeReviewComments(diff);
+        const parsedPrCodeReview: ReviewComment[] = JSON.parse(prCodeReviewComments);
+        await addingComments(owner, repoName, pull_number, commit_id, parsedPrCodeReview);
+
 
         // For demo, just respond with success
         return res.status(200).send('PR processed successfully');
