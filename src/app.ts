@@ -27,7 +27,7 @@ mongoose
 require('./auth'); // This should import GitHub, GitLab, Azure, Bitbucket strategies
 
 // ✅ Middlewares
-app.use(cors({ origin: 'http://localhost:3000', credentials: true }));
+app.use(cors({ origin: '*' }));
 app.use(passport.initialize());
 
 app.use(
