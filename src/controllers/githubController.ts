@@ -72,10 +72,10 @@ export async function webhookCall(req: Request, res: Response) {
         );
         
         // TODO: Pass diff to AI processing queue here
-        if(diff?.length > 62000) { // bytes
-          let chunkedData = parseAndSplitDiff(diff, 40000);
-          console.log(`Parsed diff into ${chunkedData.length} chunks`);
-          console.log(`First chunk: ${JSON.stringify(chunkedData)}`);
+        if(diff?.length > 30000) { // bytes
+          let chunkedData = parseAndSplitDiff(diff, 25000);
+          // console.log(`Parsed diff into ${chunkedData.length} chunks`);
+          // console.log(`First chunk: ${JSON.stringify(chunkedData)}`);
           let pRSummary = [];
           let prWalkThrough = [];
           let prCodeReviews = [];
