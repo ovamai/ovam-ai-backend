@@ -10,6 +10,7 @@ import dotenv from 'dotenv';
 import reviewRoutes from './routes/reviewRoutes';
 import githubRoutes from './routes/githubRoutes';
 import logger from './utils/logger';
+import { PORT } from './config';
 
 // Load environment variables
 dotenv.config();
@@ -48,37 +49,37 @@ app.use(
 app.use('/api/v1', reviewRoutes);
 
 // ✅ Auth routes
-['github', 'azure', 'bitbucket'].forEach(provider => {
-  app.get(
-    `/auth/${provider}`,
-    passport.authenticate(provider, {
-      scope: ['repo', 'user:email'],
-      prompt: 'login',
-    }),
-  );
+// ['github', 'azure', 'bitbucket'].forEach(provider => {
+//   app.get(
+//     `/auth/${provider}`,
+//     passport.authenticate(provider, {
+//       scope: ['repo', 'user:email'],
+//       prompt: 'login',
+//     }),
+//   );
 
-  app.get(
-    `/auth/${provider}/callback`,
-    passport.authenticate(provider, {
-      failureRedirect: '/unauthorized',
-      session: false,
-    }),
-    (req, res) => {
-      const user = req.user as any;
-      const query = new URLSearchParams({
-        token: jwt.sign(
-          { id: user._id, name: user.name, avatar: user.avatar },
-          'jwt_secret',
-          { expiresIn: '1h' },
-        ),
-        provider: user.provider,
-        accessToken: user.accessToken,
-      }).toString();
+//   app.get(
+//     `/auth/${provider}/callback`,
+//     passport.authenticate(provider, {
+//       failureRedirect: '/unauthorized',
+//       session: false,
+//     }),
+//     (req, res) => {
+//       const user = req.user as any;
+//       const query = new URLSearchParams({
+//         token: jwt.sign(
+//           { id: user._id, name: user.name, avatar: user.avatar },
+//           'jwt_secret',
+//           { expiresIn: '1h' },
+//         ),
+//         provider: user.provider,
+//         accessToken: user.accessToken,
+//       }).toString();
 
-      res.redirect(`http://localhost:3000/dashboard?${query}`);
-    },
-  );
-});
+//       res.redirect(`http://localhost:3000/dashboard?${query}`);
+//     },
+//   );
+// });
 
 app.get(
   '/auth/gitlab',
@@ -87,25 +88,25 @@ app.get(
   }),
 );
 
-app.get(
-  '/auth/gitlab/callback',
-  passport.authenticate('gitlab', {
-    failureRedirect: '/unauthorized',
-    session: false,
-  }),
-  (req, res) => {
-    const user = req.user as any;
-    const query = new URLSearchParams({
-      token: jwt.sign({ id: user._id, name: user.name }, 'jwt_secret', {
-        expiresIn: '1h',
-      }),
-      provider: user.provider,
-      accessToken: user.accessToken,
-    }).toString();
+// app.get(
+//   '/auth/gitlab/callback',
+//   passport.authenticate('gitlab', {
+//     failureRedirect: '/unauthorized',
+//     session: false,
+//   }),
+//   (req, res) => {
+//     const user = req.user as any;
+//     const query = new URLSearchParams({
+//       token: jwt.sign({ id: user._id, name: user.name }, 'jwt_secret', {
+//         expiresIn: '1h',
+//       }),
+//       provider: user.provider,
+//       accessToken: user.accessToken,
+//     }).toString();
 
-    res.redirect(`http://localhost:3000/dashboard?${query}`);
-  },
-);
+//     res.redirect(`http://localhost:3000/dashboard?${query}`);
+//   },
+// );
 
 // ✅ Existing routes
 app.use('/api', reviewRoutes);
@@ -120,6 +121,10 @@ app.get('/', (_req: Request, res: Response) => {
 // ✅ Unauthorized fallback
 app.get('/unauthorized', (_req: Request, res: Response) => {
   res.send('Unauthorized User');
+});
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
 
 export default app;
