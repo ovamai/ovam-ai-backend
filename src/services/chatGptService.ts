@@ -112,7 +112,7 @@ export async function reviewWithAI(prompt: string): Promise<string> {
       { role: 'user', content: prompt },
     ],
     temperature: 0.7,
-    max_tokens: 2000,
+    max_tokens: 1500,
   });
   const choice = resp.choices?.[0];
   const msg = choice?.message;
@@ -137,7 +137,7 @@ export async function getPrSummary(diff: String) {
         },
       ],
       temperature: 0.7,
-      max_tokens: 2000,
+      max_tokens: 1500,
     });
     const choice = resp.choices?.[0];
     const msg = choice?.message;
@@ -166,7 +166,7 @@ export async function getPrWalkthrough(diff: String) {
         },
       ],
       temperature: 0.7,
-      max_tokens: 2000,
+      max_tokens: 1500,
     });
     const choice = resp.choices?.[0];
     const msg = choice?.message;
@@ -177,6 +177,35 @@ export async function getPrWalkthrough(diff: String) {
   } catch (error) {
     console.error('Error generating walk through:', error);
     throw new Error('Failed to generate walk through');
+  }
+}
+
+export async function getUnifiedPRAnalysisPrompt(diff: String) {
+  try {
+    const resp = await openai.chat.completions.create({
+      model: OPENAI_MODEL,
+      messages: [
+        {
+          role: 'system',
+          content: prompts.CR_UnifiedPRAnalysisPrompt,
+        },
+        {
+          role: 'user',
+          content: `Here is the PR diff:\n\n${diff}`, // The actual diff
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 1500,
+    });
+    const choice = resp.choices?.[0];
+    const msg = choice?.message;
+    if (!msg?.content) {
+      throw new Error('No reply from ChatGPT');
+    }
+    return msg.content.trim();
+  } catch (error) {
+    console.error('Error generating Review comments:', error);
+    throw new Error('Failed to generate Review comments');
   }
 }
 
@@ -195,7 +224,7 @@ export async function getPrCodeReviewComments(diff: String) {
         },
       ],
       temperature: 0.7,
-      max_tokens: 2000,
+      max_tokens: 1500,
     });
     const choice = resp.choices?.[0];
     const msg = choice?.message;
@@ -224,7 +253,7 @@ export async function getOverAllPrReviewComments(comments: any) {
         },
       ],
       temperature: 0.7,
-      max_tokens: 2000,
+      max_tokens: 1500,
     });
     const choice = resp.choices?.[0];
     const msg = choice?.message;
@@ -253,7 +282,7 @@ export async function getOverAllPrSummary(comments: any) {
         },
       ],
       temperature: 0.7,
-      max_tokens: 2000,
+      max_tokens: 1500,
     });
     const choice = resp.choices?.[0];
     const msg = choice?.message;
@@ -282,7 +311,7 @@ export async function getOverAllPrWalkthrough(comments: any) {
         },
       ],
       temperature: 0.7,
-      max_tokens: 2000,
+      max_tokens: 1500,
     });
     const choice = resp.choices?.[0];
     const msg = choice?.message;

@@ -151,6 +151,7 @@ export async function updatePullRequest(
       currentBranch,
       updatedAt: DateUpdated,
     };
+    console.log(`Updating PR #${pull_number} in ${owner}/${repo} with title: ${title}`);
 
     await PullRequestUpdate.findOneAndUpdate(
       { owner, repo, pull_number },
@@ -354,133 +355,183 @@ export async function postPRCommentReview(
   return data;
 }
 
-interface DiffChunk {
+// Assuming your existing imports in githubService.ts
+// import { ReviewComment } from './githubService'; // Make sure ReviewComment is defined or imported
+
+interface DiffHunk {
   file: string;
   startLine: number;
   endLine: number;
-  chunkContent: string;
+  hunkContent: string;
+  // You might want to add other diff metadata here if helpful for AI, like old path/new path
+  // oldPath: string;
+  // newPath: string;
 }
 
-interface FunctionHunk {
+interface Chunk {
   file: string;
-  functionName: string;
-  hunks: string[];
   startLine: number;
   endLine: number;
+  chunkContent: string; // The content sent to OpenAI
 }
 
-export function parseAndSplitDiff(diffText: string, maxBytes: number): DiffChunk[] {
-  const lines = diffText.split('\n');
-
-  const functionHunks: FunctionHunk[] = [];
-
+export function parseAndSplitDiff(
+  fullDiff: string,
+  maxTokenLimit: number // A safer token limit per chunk for the combined prompt, adjust as needed for your model (e.g., 8K for gpt-3.5-turbo if you aim for 16K context, leaving space for prompt/output)
+): Chunk[] {
+  const chunks: Chunk[] = [];
+  const lines = fullDiff.split('\n');
   let currentFile = '';
-  let currentFunction = '';
-  let currentHunkLines: string[] = [];
-  let hunkStartLine = 0;
-  let hunkEndLine = 0;
+  let currentHunk: DiffHunk | null = null;
+  let fileContentLines: string[] = []; // Stores lines for the current file being processed
 
-  const flushHunk = () => {
-    if (currentFile && currentHunkLines.length > 0) {
-      functionHunks.push({
-        file: currentFile,
-        functionName: currentFunction || 'UNKNOWN_FUNCTION',
-        hunks: [...currentHunkLines],
-        startLine: hunkStartLine,
-        endLine: hunkEndLine,
-      });
-    }
-    currentHunkLines = [];
-  };
+  // Regular expression to match diff file headers (e.g., "--- a/file", "+++ b/file")
+  const fileHeaderRegex = /^(---|\+\+\+) (a|b)\/(.+)$/;
+  // Regular expression to match diff hunk headers (e.g., "@@ -old_start,old_lines +new_start,new_lines @@")
+  const hunkHeaderRegex = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@.*$/;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    if (line.startsWith('diff --git')) {
-      flushHunk();
-      const match = line.match(/b\/(.+)$/);
-      currentFile = match ? match[1] : '';
-      currentFunction = '';
-    }
-
-    if (line.startsWith('@@')) {
-      flushHunk();
-      const match = line.match(/@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@(.*)/);
+    // Check for file headers
+    if (line.startsWith('--- a/') || line.startsWith('+++ b/')) {
+      const match = line.match(fileHeaderRegex);
       if (match) {
-        hunkStartLine = parseInt(match[1], 10);
-        const lineCount = match[2] ? parseInt(match[2], 10) : 1;
-        hunkEndLine = hunkStartLine + lineCount - 1;
-        currentFunction = match[3].trim() || 'UNKNOWN_FUNCTION';
+        // If we were processing a previous file, add it as a chunk if it's not empty
+        if (currentFile && fileContentLines.length > 0) {
+          addFileOrHunkChunks(currentFile, fileContentLines.join('\n'), chunks, maxTokenLimit);
+        }
+        currentFile = match[3]; // Extract the file path
+        fileContentLines = []; // Reset for the new file
+        currentHunk = null; // Reset hunk for the new file
+        continue; // Skip to next line
       }
     }
 
-    if (
-      currentFile &&
-      (line.startsWith('+') || line.startsWith('-') || line.startsWith(' ') || line.startsWith('@@'))
-    ) {
-      currentHunkLines.push(line);
+    // Check for hunk headers
+    const hunkMatch = line.match(hunkHeaderRegex);
+    if (hunkMatch) {
+      // If we were processing a previous hunk, add it as a chunk
+      if (currentHunk && currentHunk.hunkContent) {
+        addFileOrHunkChunks(currentHunk.file, currentHunk.hunkContent, chunks, maxTokenLimit);
+      }
+      // Start a new hunk
+      const newStartLine = parseInt(hunkMatch[3], 10);
+      const newLines = parseInt(hunkMatch[4] || '1', 10);
+      currentHunk = {
+        file: currentFile, // This assumes currentFile is correctly set by fileHeaderRegex
+        startLine: newStartLine,
+        endLine: newStartLine + newLines - 1,
+        hunkContent: line + '\n', // Include the hunk header in the content
+      };
+      fileContentLines.push(line); // Also add to file content if we're building file-based chunks
+    } else if (currentHunk) {
+      // If we are inside a hunk, append line to hunk content
+      currentHunk.hunkContent += line + '\n';
+      fileContentLines.push(line); // Also add to file content
+    } else if (currentFile) {
+      // If we are outside a hunk but inside a file (e.g., context lines before first hunk)
+      fileContentLines.push(line);
     }
   }
 
-  flushHunk();
-
-  // Group hunks by (file + function)
-  const grouped: Record<string, FunctionHunk[]> = {};
-
-  for (const fh of functionHunks) {
-    const key = `${fh.file}::${fh.functionName}`;
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(fh);
+  // Add the last file/hunk as a chunk
+  if (currentFile && fileContentLines.length > 0) {
+    addFileOrHunkChunks(currentFile, fileContentLines.join('\n'), chunks, maxTokenLimit);
+  } else if (currentHunk && currentHunk.hunkContent) {
+     addFileOrHunkChunks(currentHunk.file, currentHunk.hunkContent, chunks, maxTokenLimit);
+  } else if (fullDiff.trim().length > 0 && chunks.length === 0) {
+      // Handle cases where diff might be too small to have clear file/hunk headers, but still has content
+      addFileOrHunkChunks("unknown_file", fullDiff, chunks, maxTokenLimit);
   }
 
-  // Now pack into chunks, maxBytes each
-  const result: DiffChunk[] = [];
-  let currentChunk: string[] = [];
-  let currentBytes = 0;
-  let chunkFile = '';
-  let chunkStart = 0;
-  let chunkEnd = 0;
-
-  for (const [key, hunks] of Object.entries(grouped)) {
-    const file = hunks[0].file;
-    const startLine = hunks[0].startLine;
-    const endLine = hunks[hunks.length - 1].endLine;
-    const content = hunks.flatMap(h => h.hunks).join('\n');
-    const contentBytes = Buffer.byteLength(content, 'utf-8');
-
-    if (
-      currentBytes + contentBytes > maxBytes &&
-      currentChunk.length > 0
-    ) {
-      // flush
-      result.push({
-        file: chunkFile,
-        startLine: chunkStart,
-        endLine: chunkEnd,
-        chunkContent: currentChunk.join('\n'),
-      });
-      currentChunk = [];
-      currentBytes = 0;
-    }
-
-    if (currentChunk.length === 0) {
-      chunkFile = file;
-      chunkStart = startLine;
-    }
-
-    currentChunk.push(content);
-    currentBytes += contentBytes;
-    chunkEnd = endLine;
-  }
-
-  if (currentChunk.length > 0) {
-    result.push({
-      file: chunkFile,
-      startLine: chunkStart,
-      endLine: chunkEnd,
-      chunkContent: currentChunk.join('\n'),
-    });
-  }
-
-  return result;
+  return chunks;
 }
+
+// Helper function to add content as chunks, respecting maxTokenLimit
+function addFileOrHunkChunks(
+  file: string,
+  content: string,
+  chunks: Chunk[],
+  maxTokenLimit: number
+) {
+  // Estimate tokens roughly (e.g., 1 token per 4 characters for English text)
+  // You might want a more precise token counter for better accuracy
+  const estimatedTokens = content.length / 4; 
+
+  if (estimatedTokens <= maxTokenLimit) {
+    chunks.push({
+      file,
+      startLine: 1, // Placeholder if actual start/end lines for the entire file are not easily determined
+      endLine: content.split('\n').length, // Placeholder
+      chunkContent: `FILE: ${file}\n${content}`,
+    });
+  } else {
+    // If the file/hunk is too large, fall back to line-by-line splitting
+    // This is a last resort to ensure content fits within limits.
+    // The exact line numbering for these sub-hunk chunks might be less accurate.
+    const lines = content.split('\n');
+    let currentChunkLines: string[] = [];
+    let currentChunkBytes = 0;
+    let chunkStartLine = 1; // Assuming relative to the content block passed in
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const lineBytes = line.length + 1; // +1 for newline character
+
+      // If adding the current line exceeds the limit, push the current chunk
+      // and start a new one with the current line.
+      if (currentChunkBytes + lineBytes > maxTokenLimit * 4 && currentChunkLines.length > 0) {
+        chunks.push({
+          file,
+          startLine: chunkStartLine,
+          endLine: chunkStartLine + currentChunkLines.length - 1,
+          chunkContent: `FILE: ${file}\n${currentChunkLines.join('\n')}`,
+        });
+        currentChunkLines = [];
+        currentChunkBytes = 0;
+        chunkStartLine = i + 1; // Update start line for the new chunk
+      }
+
+      currentChunkLines.push(line);
+      currentChunkBytes += lineBytes;
+    }
+
+    // Push any remaining lines as the last chunk
+    if (currentChunkLines.length > 0) {
+      chunks.push({
+        file,
+        startLine: chunkStartLine,
+        endLine: chunkStartLine + currentChunkLines.length - 1,
+        chunkContent: `FILE: ${file}\n${currentChunkLines.join('\n')}`,
+      });
+    }
+  }
+}
+
+// Hierarchical safe merge to handle huge combined inputs.
+export async function hierarchicalMerge(
+  summaries: string[],
+  mergeFn: (mergedText: string) => Promise<string>,
+  maxPerBatch: number = 10
+): Promise<string> {
+  // Base case: If summaries are within the batch limit, merge them directly
+  if (summaries.length <= maxPerBatch) {
+    return await mergeFn(summaries.join('\n\n'));
+  }
+
+  const batchPromises: Promise<string>[] = [];
+  for (let i = 0; i < summaries.length; i += maxPerBatch) {
+    const batch = summaries.slice(i, i + maxPerBatch);
+    // Create a promise for each batch merge and add it to the array
+    batchPromises.push(mergeFn(batch.join('\n\n')));
+  }
+
+  // Execute all batch merges in parallel
+  const mergedBatchesResults = await Promise.all(batchPromises);
+
+  // Recursively call hierarchicalMerge on the results of the merged batches
+  // This ensures that subsequent levels of merging are also parallelized
+  return await hierarchicalMerge(mergedBatchesResults, mergeFn, maxPerBatch);
+}
+

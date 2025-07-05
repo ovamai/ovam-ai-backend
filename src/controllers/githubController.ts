@@ -5,13 +5,14 @@ import {
   fetchPRDiff,
   generateSummaryFromDynamicJson,
   getInstallationTokenHelperFun,
+  hierarchicalMerge,
   parseAndSplitDiff,
   postPRComment,
   ReviewComment,
   updatePullRequest,
 } from '../services/githubService';
 import { verifySignature } from '../utils/github_verify_signature';
-import { getOverAllPrReviewComments, getOverAllPrSummary, getOverAllPrWalkthrough, getPrCodeReviewComments, getPrSummary, getPrWalkthrough } from '../services/chatGptService';
+import { getOverAllPrReviewComments, getOverAllPrSummary, getOverAllPrWalkthrough, getPrCodeReviewComments, getPrSummary, getPrWalkthrough, getUnifiedPRAnalysisPrompt } from '../services/chatGptService';
 
 export async function getInstallationToken(req: Request, res: Response) {
   const { installationId } = req.body;
@@ -58,78 +59,116 @@ export async function webhookCall(req: Request, res: Response) {
           installation.id,
         );
 
-        // Extract repo info
         const [owner, repoName] = repo.full_name.split('/');
         const commit_id = pr?.head?.sha;
         const pull_number = pr?.number;
 
-        // Fetch PR diff
         const diff = await fetchPRDiff(
           owner,
           repoName,
-          pr.number,
+          pull_number,
           installationToken,
         );
-        
-        // TODO: Pass diff to AI processing queue here
-        if(diff?.length > 30000) { // bytes
-          let chunkedData = parseAndSplitDiff(diff, 25000);
-          // console.log(`Parsed diff into ${chunkedData.length} chunks`);
-          // console.log(`First chunk: ${JSON.stringify(chunkedData)}`);
-          let pRSummary = [];
-          let prWalkThrough = [];
-          let prCodeReviews = [];
-          for (const chunk of chunkedData) {
-            let prChunkSummary = await getPrSummary(JSON.stringify(chunk));
-            pRSummary.push(prChunkSummary);
 
-            let chunkedWalkthrough = await getPrWalkthrough(JSON.stringify(chunk));
-            prWalkThrough.push(chunkedWalkthrough);
+        console.log(`Fetched diff for PR #${pull_number} in ${repoName}:`, diff?.length);
 
-            let prCodeReviewComments = await getPrCodeReviewComments(JSON.stringify(chunk));
-            prCodeReviews.push(prCodeReviewComments);
+        if (diff?.length > 25000) {
+          const chunkedData = parseAndSplitDiff(diff, 20000);
+          console.log(`Parsed diff into ${chunkedData.length} chunks`);
+
+          const prSummaries: string[] = [];
+          const prWalkthroughs: string[] = [];
+          const allReviewComments: ReviewComment[] = [];
+
+          let count = 0;
+
+          const chunkReviewPromises = chunkedData.map(async (chunk) => {
+            // Call the new function that sends the single combined prompt to OpenAI
+            try {
+              const combinedResponseJsonString = await getUnifiedPRAnalysisPrompt(chunk.chunkContent);
+              console.log(`Combined response for chunk ${count}: ${combinedResponseJsonString}...`); // Log first 200 chars for brevity
+              count++;
+              // This is the critical line where JSON parsing might fail
+              return JSON.parse(combinedResponseJsonString);
+            } catch (error: any) {
+              // Log the specific error for the failing chunk
+              console.error(
+                `❌ Error processing chunk ${count} (file: ${chunk.file}, lines: ${chunk.startLine}-${chunk.endLine}):`,
+                error.message || error,
+              );
+              // It's important to return a resolved promise even on error
+              // so that Promise.all does not immediately reject.
+              // This allows Promise.all to complete and you can filter out failed results.
+              // Returning a specific error object will help you identify which chunks failed.
+              return { error: true, message: error.message || 'Unknown error during chunk processing' };
+            }
+          });
+
+          // Wait for all combined review calls for all chunks to complete in parallel
+          try {
+            const allCombinedResults = await Promise.all(chunkReviewPromises);
+            console.log(`All combined results received for ${allCombinedResults.length} chunks`);
+
+            // Process the results from each chunk
+            for (const result of allCombinedResults) {
+              if (result.summary) {
+                prSummaries.push(JSON.stringify(result.summary)); // Store summary as string for hierarchical merge if needed
+              }
+              if (result.walkthrough) {
+                prWalkthroughs.push(JSON.stringify(result.walkthrough)); // Store walkthrough as string for hierarchical merge if needed
+              }
+              if (result.codeReviewComments && Array.isArray(result.codeReviewComments)) {
+                allReviewComments.push(...result.codeReviewComments);
+              } else {
+                console.warn('⚠️ codeReviewComments not found or not an array in combined response for a chunk.');
+              }
+            }
+            console.log(`prSummaries: ${prSummaries}`);
+            console.log(`prWalkthroughs: ${prWalkthroughs}`);
+            console.log(`allReviewComments: ${allReviewComments}`);
+
+            const finalPrSummaryRaw = await hierarchicalMerge(prSummaries, getOverAllPrSummary);
+            const cleanPrSummary = generateSummaryFromDynamicJson(JSON.parse(finalPrSummaryRaw));
+            console.log('Final PR Summary:', cleanPrSummary);
+
+            const finalPrWalkthroughRaw = await hierarchicalMerge(prWalkthroughs, getOverAllPrWalkthrough);
+            const finalPrWalkthrough = JSON.parse(finalPrWalkthroughRaw);
+            console.log('Final PR Walkthrough:', finalPrWalkthrough);
+
+            await updatePullRequest(owner, repoName, pull_number, pr?.title, cleanPrSummary, pr?.base?.ref, installationToken);
+            await postPRComment(owner, repoName, pull_number, finalPrWalkthrough);
+            await addingComments(owner, repoName, pull_number, commit_id, allReviewComments);
+            
+            return res.status(200).send('PR processed successfully (chunked)');
+          } catch (error) {
+            console.error('❌ Error processing chunked PR:', error);
+            return res.status(500).send('Error processing chunked PR');
           }
-          
-          // chunked PR summary
-          let resultSummary = await getOverAllPrSummary(pRSummary);
-          resultSummary = generateSummaryFromDynamicJson(JSON.parse(resultSummary));
-          await updatePullRequest(owner, repoName, pull_number, pr?.title, resultSummary, pr?.base?.ref, installationToken);
-          
-          let resultWalkthrough = await getOverAllPrWalkthrough(prWalkThrough);
-          await postPRComment(owner, repoName, pull_number, JSON.parse(resultWalkthrough));
-          
-          // chunked PR Code Review Comments
-          let resultComments = await getOverAllPrReviewComments(prCodeReviews);
-          const parsedPrCodeReview: ReviewComment[] = JSON.parse(resultComments);
-          await addingComments(owner, repoName, pull_number, commit_id, parsedPrCodeReview);
-
-          return res.status(200).send('PR processed successfully');
         }
-        
-        // Get PR summary
-        let prSummary = await getPrSummary(diff);
-        prSummary = generateSummaryFromDynamicJson(JSON.parse(prSummary));
-        await updatePullRequest(owner, repoName, pull_number, pr?.title, prSummary, pr?.base?.ref, installationToken);
 
-        // get PR walkthrough
-        let prWalkthrough = await getPrWalkthrough(diff);
-        await postPRComment(owner, repoName, pull_number, JSON.parse(prWalkthrough));
+        // let result = await getUnifiedPRAnalysisPrompt(diff);
+        // console.log('Unified PR Analysis Result:', result);
+        const [prSummaryRaw, prWalkthroughRaw, prCodeReviewComments] = await Promise.all([
+          getPrSummary(`FILE: FullPR\n${diff}`),
+          getPrWalkthrough(`FILE: FullPR\n${diff}`),
+          getPrCodeReviewComments(`FILE: FullPR\n${diff}`)
+        ]);
 
-        // Get code review comments
-        let prCodeReviewComments = await getPrCodeReviewComments(diff);
-        const parsedPrCodeReview: ReviewComment[] = JSON.parse(prCodeReviewComments);
-        await addingComments(owner, repoName, pull_number, commit_id, parsedPrCodeReview);
+        const cleanPrSummary = generateSummaryFromDynamicJson(JSON.parse(prSummaryRaw));
+        const prWalkthrough = JSON.parse(prWalkthroughRaw);
+        const parsedComments: ReviewComment[] = JSON.parse(prCodeReviewComments);
 
+        await updatePullRequest(owner, repoName, pull_number, pr?.title, cleanPrSummary, pr?.base?.ref, installationToken);
+        await postPRComment(owner, repoName, pull_number, prWalkthrough);
+        await addingComments(owner, repoName, pull_number, commit_id, parsedComments);
 
-        // For demo, just respond with success
-        return res.status(200).send('PR processed successfully');
+        return res.status(200).send('PR processed successfully (single)');
       }
     }
 
-    // For other events, just acknowledge
     res.status(200).send('Event received');
   } catch (error) {
-    console.error('Error processing webhook:', error);
+    console.error('❌ Error processing webhook:', error);
     res.status(500).send('Internal Server Error');
   }
 }
